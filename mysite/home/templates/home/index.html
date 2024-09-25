@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <title>Page d'accueil</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <h1>Bienvenue, utilisateur connecté!</h1>
+    <button id="loginBtn">Se connecter</button>
+    <button onclick="window.location.href='/inscription'">S'inscrire</button>
+
+    <!-- Popup de connexion -->
+    <div id="loginPopup" class="popup">
+        <div class="popup-content">
+            <span class="close">&times;</span>
+            <h2>Connexion</h2>
+            <label for="username">Utilisateur:</label>
+            <input type="text" id="username" name="username" required>
+            <label for="password">Mot de passe:</label>
+            <input type="password" id="password" name="password" required>
+            <button type="submit">Se connecter</button>
+        </div>
+    </div>
+
+    <script>
+        // Script pour gérer le popup de connexion
+        var popup = document.getElementById('loginPopup');
+        var btn = document.getElementById('loginBtn');
+        var span = document.getElementsByClassName('close')[0];
+
+        btn.onclick = function() {
+            popup.style.display = 'block';
+        }
+
+        span.onclick = function() {
+            popup.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == popup) {
+                popup.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
