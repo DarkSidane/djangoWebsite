@@ -10,6 +10,26 @@ button {
     font-size: 16px;
 }
 
+form {
+    display: inline-block;
+    text-align: left;
+    margin-top: 20px;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 8px;
+    margin: 5px 0;
+    box-sizing: border-box;
+}
+
 .popup {
     display: none; /* Masquer le popup par défaut */
     position: fixed;
@@ -39,19 +59,6 @@ button {
     font-size: 28px;
     font-weight: bold;
     cursor: pointer;
-}
-
-label {
-    display: block;
-    margin-top: 10px;
-}
-
-input[type="text"],
-input[type="password"] {
-    width: 100%;
-    padding: 8px;
-    margin: 5px 0;
-    box-sizing: border-box;
 }
 
 .popup-content button {

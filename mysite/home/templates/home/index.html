@@ -9,7 +9,7 @@
 <body>
     <h1>Bienvenue, utilisateur connecté!</h1>
     <button id="loginBtn">Se connecter</button>
-    <button onclick="window.location.href='/inscription'">S'inscrire</button>
+    <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>
 
     <!-- Popup de connexion -->
     <div id="loginPopup" class="popup">

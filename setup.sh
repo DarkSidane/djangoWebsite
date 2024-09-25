@@ -40,6 +40,7 @@ from . import views
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('inscription/', views.registration, name='registration'),
 ]
 " > home/urls.py
 
@@ -49,14 +50,20 @@ from django.shortcuts import render
 
 def index(request):
     return render(request, 'home/index.html')
+
+def registration(request):
+    return render(request, 'home/registration.html')
 " > home/views.py
 
-# Créer le répertoire des templates et le fichier index.html
+# Créer le répertoire des templates
 mkdir -p home/templates/home
+
+# Créer home/templates/home/index.html
 cat <<'EOF' > home/templates/home/index.html
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    {% load static %}
     <meta charset="UTF-8">
     <title>Page d'accueil</title>
     <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
@@ -64,7 +71,7 @@ cat <<'EOF' > home/templates/home/index.html
 <body>
     <h1>Bienvenue, utilisateur connecté!</h1>
     <button id="loginBtn">Se connecter</button>
-    <button onclick="window.location.href='/inscription'">S'inscrire</button>
+    <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>
 
     <!-- Popup de connexion -->
     <div id="loginPopup" class="popup">
@@ -103,6 +110,38 @@ cat <<'EOF' > home/templates/home/index.html
 </html>
 EOF
 
+# Créer home/templates/home/registration.html
+cat <<'EOF' > home/templates/home/registration.html
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <title>Inscription</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <h1>Inscription</h1>
+    <form action="/inscription/" method="post">
+        <!-- Nous n'allons pas traiter le POST pour l'instant -->
+        <label for="username">Nom d'utilisateur:</label>
+        <input type="text" id="username" name="username" required>
+
+        <label for="email">Adresse e-mail:</label>
+        <input type="email" id="email" name="email" required>
+
+        <label for="password">Mot de passe:</label>
+        <input type="password" id="password" name="password" required>
+
+        <label for="confirm_password">Confirmer le mot de passe:</label>
+        <input type="password" id="confirm_password" name="confirm_password" required>
+
+        <button type="submit">S'inscrire</button>
+    </form>
+</body>
+</html>
+EOF
+
 # Créer le répertoire static/css et le fichier styles.css
 mkdir -p home/static/css
 cat <<'EOF' > home/static/css/styles.css
@@ -116,6 +155,26 @@ button {
     padding: 10px 20px;
     margin: 5px;
     font-size: 16px;
+}
+
+form {
+    display: inline-block;
+    text-align: left;
+    margin-top: 20px;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+    width: 100%;
+    padding: 8px;
+    margin: 5px 0;
+    box-sizing: border-box;
 }
 
 .popup {
@@ -149,19 +208,6 @@ button {
     cursor: pointer;
 }
 
-label {
-    display: block;
-    margin-top: 10px;
-}
-
-input[type="text"],
-input[type="password"] {
-    width: 100%;
-    padding: 8px;
-    margin: 5px 0;
-    box-sizing: border-box;
-}
-
 .popup-content button {
     width: 100%;
     padding: 10px;
@@ -174,4 +220,3 @@ python3 manage.py migrate
 
 # Lancer le serveur de développement
 python3 manage.py runserver
-
