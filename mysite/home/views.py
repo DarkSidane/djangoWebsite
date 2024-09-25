@@ -1,10 +1,8 @@
 
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.contrib.auth.hashers import make_password, check_password
-import yaml
-import os
-from django.conf import settings
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 
 def index(request):
     return render(request, 'home/index.html')
@@ -16,38 +14,22 @@ def registration(request):
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm_password')
 
-        # Validation simple
+        # Validation
         if password != confirm_password:
             messages.error(request, "Les mots de passe ne correspondent pas.")
             return render(request, 'home/registration.html')
 
-        # Chargement des utilisateurs existants
-        users_file = os.path.join(settings.BASE_DIR, 'home', 'users.yaml')
-        if os.path.exists(users_file):
-            with open(users_file, 'r') as file:
-                users = yaml.safe_load(file) or []
-        else:
-            users = []
+        if User.objects.filter(username=username).exists():
+            messages.error(request, "Le nom d'utilisateur existe déjà.")
+            return render(request, 'home/registration.html')
 
-        # Vérification si le nom d'utilisateur ou l'email existe déjà
-        for user in users:
-            if user['username'] == username:
-                messages.error(request, "Le nom d'utilisateur existe déjà.")
-                return render(request, 'home/registration.html')
-            if user['email'] == email:
-                messages.error(request, "L'adresse e-mail est déjà utilisée.")
-                return render(request, 'home/registration.html')
+        if User.objects.filter(email=email).exists():
+            messages.error(request, "L'adresse e-mail est déjà utilisée.")
+            return render(request, 'home/registration.html')
 
-        # Enregistrement du nouvel utilisateur avec mot de passe haché
-        user_data = {
-            'username': username,
-            'email': email,
-            'password': make_password(password)
-        }
-        users.append(user_data)
-
-        with open(users_file, 'w') as file:
-            yaml.dump(users, file)
+        # Création de l'utilisateur
+        user = User.objects.create_user(username=username, email=email, password=password)
+        user.save()
 
         messages.success(request, "Inscription réussie. Vous pouvez maintenant vous connecter.")
         return redirect('index')
@@ -59,41 +41,19 @@ def login(request):
         username = request.POST.get('username').strip()
         password = request.POST.get('password')
 
-        # Charger les utilisateurs existants
-        users_file = os.path.join(settings.BASE_DIR, 'home', 'users.yaml')
-        if os.path.exists(users_file):
-            with open(users_file, 'r') as file:
-                users = yaml.safe_load(file) or []
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            auth_login(request, user)
+            messages.success(request, f"Bienvenue, {username}!")
+            return redirect('index')
         else:
-            users = []
-
-        # Authentifier l'utilisateur
-        user_found = False
-        for user in users:
-            if user['username'] == username:
-                user_found = True
-                if check_password(password, user['password']):
-                    # Connexion réussie
-                    request.session['username'] = username
-                    messages.success(request, f"Bienvenue, {username}!")
-                    return redirect('index')
-                else:
-                    break  # Mot de passe incorrect
-
-        # Si l'authentification échoue
-        if not user_found:
-            messages.error(request, "Nom d'utilisateur incorrect.")
-        else:
-            messages.error(request, "Mot de passe incorrect.")
-        return redirect('index')
+            messages.error(request, "Nom d'utilisateur ou mot de passe incorrect.")
+            return redirect('index')
 
     return redirect('index')
 
 def logout(request):
-    try:
-        del request.session['username']
-    except KeyError:
-        pass
+    auth_logout(request)
     messages.success(request, "Vous êtes maintenant déconnecté.")
     return redirect('index')
 

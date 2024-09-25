@@ -16,8 +16,8 @@
         </ul>
     {% endif %}
 
-    {% if request.session.username %}
-        <h1>Bienvenue, {{ request.session.username }}!</h1>
+    {% if user.is_authenticated %}
+        <h1>Bienvenue, {{ user.username }}!</h1>
         <button onclick="window.location.href='{% url 'logout' %}'">Se déconnecter</button>
     {% else %}
         <h1>Bienvenue, invité!</h1>

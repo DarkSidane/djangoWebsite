@@ -7,14 +7,10 @@ python3 manage.py startapp home
 
 # Ajouter 'home' à INSTALLED_APPS dans mysite/settings.py
 cd mysite
+
+# S'assurer que 'home' est ajouté à INSTALLED_APPS
 sed -i '' "/INSTALLED_APPS = \[/ a\\
     'home',  # Ajoutez votre application 'home' ici
-" settings.py
-
-# Ajouter 'django.contrib.messages' et 'django.contrib.sessions' à INSTALLED_APPS
-sed -i '' "/'django.contrib.staticfiles',/ a\\
-    'django.contrib.messages',\\
-    'django.contrib.sessions',
 " settings.py
 
 # Ajouter STATICFILES_DIRS et configuration pour les messages à settings.py
@@ -33,26 +29,29 @@ MESSAGE_TAGS = {
 }
 " >> settings.py
 
-# Ajouter les middlewares nécessaires pour les sessions et les messages
+# Ajouter les middlewares nécessaires pour les sessions, les messages et l'authentification
 sed -i '' "/MIDDLEWARE = \[/ a\\
     'django.contrib.sessions.middleware.SessionMiddleware',\\
     'django.middleware.common.CommonMiddleware',\\
+    'django.contrib.auth.middleware.AuthenticationMiddleware',\\
     'django.contrib.messages.middleware.MessageMiddleware',
 " settings.py
 
-# Ajouter le context processor pour les messages
+# Ajouter le context processor pour les messages et l'authentification
 sed -i '' "/'django.template.context_processors.debug',/ a\\
+                    'django.template.context_processors.request',\\
+                    'django.contrib.auth.context_processors.auth',\\
                     'django.contrib.messages.context_processors.messages',
 " settings.py
 
-# Modifier mysite/urls.py pour inclure les URLs de l'application 'home'
+# Modifier mysite/urls.py pour inclure les URLs de l'application 'home' et de l'admin
 echo "
 from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
     path('', include('home.urls')),  # Inclure les URLs de l'application 'home'
-    path('admin/', admin.site.urls),
+    path('admin/', admin.site.urls),  # Inclure les URLs de l'administration
 ]
 " > urls.py
 
@@ -76,10 +75,8 @@ urlpatterns = [
 echo "
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.contrib.auth.hashers import make_password, check_password
-import yaml
-import os
-from django.conf import settings
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 
 def index(request):
     return render(request, 'home/index.html')
@@ -91,38 +88,22 @@ def registration(request):
         password = request.POST.get('password')
         confirm_password = request.POST.get('confirm_password')
 
-        # Validation simple
+        # Validation
         if password != confirm_password:
             messages.error(request, \"Les mots de passe ne correspondent pas.\")
             return render(request, 'home/registration.html')
 
-        # Chargement des utilisateurs existants
-        users_file = os.path.join(settings.BASE_DIR, 'home', 'users.yaml')
-        if os.path.exists(users_file):
-            with open(users_file, 'r') as file:
-                users = yaml.safe_load(file) or []
-        else:
-            users = []
+        if User.objects.filter(username=username).exists():
+            messages.error(request, \"Le nom d'utilisateur existe déjà.\")
+            return render(request, 'home/registration.html')
 
-        # Vérification si le nom d'utilisateur ou l'email existe déjà
-        for user in users:
-            if user['username'] == username:
-                messages.error(request, \"Le nom d'utilisateur existe déjà.\")
-                return render(request, 'home/registration.html')
-            if user['email'] == email:
-                messages.error(request, \"L'adresse e-mail est déjà utilisée.\")
-                return render(request, 'home/registration.html')
+        if User.objects.filter(email=email).exists():
+            messages.error(request, \"L'adresse e-mail est déjà utilisée.\")
+            return render(request, 'home/registration.html')
 
-        # Enregistrement du nouvel utilisateur avec mot de passe haché
-        user_data = {
-            'username': username,
-            'email': email,
-            'password': make_password(password)
-        }
-        users.append(user_data)
-
-        with open(users_file, 'w') as file:
-            yaml.dump(users, file)
+        # Création de l'utilisateur
+        user = User.objects.create_user(username=username, email=email, password=password)
+        user.save()
 
         messages.success(request, \"Inscription réussie. Vous pouvez maintenant vous connecter.\")
         return redirect('index')
@@ -134,41 +115,19 @@ def login(request):
         username = request.POST.get('username').strip()
         password = request.POST.get('password')
 
-        # Charger les utilisateurs existants
-        users_file = os.path.join(settings.BASE_DIR, 'home', 'users.yaml')
-        if os.path.exists(users_file):
-            with open(users_file, 'r') as file:
-                users = yaml.safe_load(file) or []
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            auth_login(request, user)
+            messages.success(request, f\"Bienvenue, {username}!\")
+            return redirect('index')
         else:
-            users = []
-
-        # Authentifier l'utilisateur
-        user_found = False
-        for user in users:
-            if user['username'] == username:
-                user_found = True
-                if check_password(password, user['password']):
-                    # Connexion réussie
-                    request.session['username'] = username
-                    messages.success(request, f\"Bienvenue, {username}!\")
-                    return redirect('index')
-                else:
-                    break  # Mot de passe incorrect
-
-        # Si l'authentification échoue
-        if not user_found:
-            messages.error(request, \"Nom d'utilisateur incorrect.\")
-        else:
-            messages.error(request, \"Mot de passe incorrect.\")
-        return redirect('index')
+            messages.error(request, \"Nom d'utilisateur ou mot de passe incorrect.\")
+            return redirect('index')
 
     return redirect('index')
 
 def logout(request):
-    try:
-        del request.session['username']
-    except KeyError:
-        pass
+    auth_logout(request)
     messages.success(request, \"Vous êtes maintenant déconnecté.\")
     return redirect('index')
 " > home/views.py
@@ -196,8 +155,8 @@ cat <<'EOF' > home/templates/home/index.html
         </ul>
     {% endif %}
 
-    {% if request.session.username %}
-        <h1>Bienvenue, {{ request.session.username }}!</h1>
+    {% if user.is_authenticated %}
+        <h1>Bienvenue, {{ user.username }}!</h1>
         <button onclick="window.location.href='{% url 'logout' %}'">Se déconnecter</button>
     {% else %}
         <h1>Bienvenue, invité!</h1>
@@ -292,6 +251,7 @@ EOF
 # Créer le répertoire static/css et le fichier styles.css
 mkdir -p home/static/css
 cat <<'EOF' > home/static/css/styles.css
+/* Styles CSS existants */
 body {
     font-family: Arial, sans-serif;
     text-align: center;
@@ -383,8 +343,11 @@ input[type="password"] {
 }
 EOF
 
-# Appliquer les migrations (même si non utilisées pour cette page)
+# Appliquer les migrations
 python3 manage.py migrate
+
+# Créer un superutilisateur pour accéder au panneau d'administration
+echo "from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.create_superuser('admin', 'admin@example.com', 'adminpass')" | python3 manage.py shell
 
 # Lancer le serveur de développement
 python3 manage.py runserver
