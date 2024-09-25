@@ -30,6 +30,27 @@ input[type="password"] {
     box-sizing: border-box;
 }
 
+.messages {
+    list-style-type: none;
+    padding: 0;
+}
+
+.messages li {
+    margin: 10px auto;
+    padding: 10px;
+    width: 50%;
+    color: #fff;
+    border-radius: 5px;
+}
+
+.messages li.error {
+    background-color: #e74c3c;
+}
+
+.messages li.success {
+    background-color: #2ecc71;
+}
+
 .popup {
     display: none; /* Masquer le popup par défaut */
     position: fixed;

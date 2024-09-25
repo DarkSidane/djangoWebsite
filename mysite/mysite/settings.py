@@ -20,7 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-m!3yk6zrw5kh65#-nlgd6z*y)@h+ls+#93ysuq*r#43_nt4c4@"
+SECRET_KEY = "django-insecure-ibal#8&!gh4401n^@bv&a&g-a9-j*yebph5@3132)8uh^hq#r-"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -41,6 +41,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -127,4 +129,12 @@ STATIC_URL = '/static/'
 
 import os
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'home/static')]
+
+# Configuration pour les messages
+from django.contrib.messages import constants as messages
+
+MESSAGE_TAGS = {
+    messages.ERROR: 'error',
+    messages.SUCCESS: 'success',
+}
 

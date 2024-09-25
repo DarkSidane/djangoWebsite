@@ -7,6 +7,15 @@
     <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
 </head>
 <body>
+    <!-- Affichage des messages -->
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
     <h1>Bienvenue, utilisateur connecté!</h1>
     <button id="loginBtn">Se connecter</button>
     <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>

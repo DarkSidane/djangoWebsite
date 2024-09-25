@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Vérifier si PyYAML est installé, sinon l'installer
+pip3 show PyYAML > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echo "Installation de PyYAML..."
+    pip3 install PyYAML
+fi
+
 # Créer le projet Django et l'application 'home'
 django-admin startproject mysite
 cd mysite
@@ -11,13 +18,37 @@ sed -i '' "/INSTALLED_APPS = \[/ a\\
     'home',  # Ajoutez votre application 'home' ici
 " settings.py
 
-# Ajouter STATICFILES_DIRS à settings.py
+# Ajouter 'django.contrib.messages' à INSTALLED_APPS
+sed -i '' "/'django.contrib.staticfiles',/ a\\
+    'django.contrib.messages',
+" settings.py
+
+# Ajouter STATICFILES_DIRS et configuration pour les messages à settings.py
 echo "
 STATIC_URL = '/static/'
 
 import os
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'home/static')]
+
+# Configuration pour les messages
+from django.contrib.messages import constants as messages
+
+MESSAGE_TAGS = {
+    messages.ERROR: 'error',
+    messages.SUCCESS: 'success',
+}
 " >> settings.py
+
+# Ajouter les middlewares nécessaires pour les messages
+sed -i '' "/MIDDLEWARE = \[/ a\\
+    'django.contrib.sessions.middleware.SessionMiddleware',\\
+    'django.contrib.messages.middleware.MessageMiddleware',
+" settings.py
+
+# Ajouter le context processor pour les messages
+sed -i '' "/'django.template.context_processors.debug',/ a\\
+                    'django.contrib.messages.context_processors.messages',
+" settings.py
 
 # Modifier mysite/urls.py pour inclure les URLs de l'application 'home'
 echo "
@@ -46,12 +77,58 @@ urlpatterns = [
 
 # Créer home/views.py
 echo "
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.contrib import messages
+import yaml
+import os
+from django.conf import settings
 
 def index(request):
     return render(request, 'home/index.html')
 
 def registration(request):
+    if request.method == 'POST':
+        username = request.POST.get('username').strip()
+        email = request.POST.get('email').strip()
+        password = request.POST.get('password')
+        confirm_password = request.POST.get('confirm_password')
+
+        # Validation simple
+        if password != confirm_password:
+            messages.error(request, \"Les mots de passe ne correspondent pas.\")
+            return render(request, 'home/registration.html')
+
+        # Chargement des utilisateurs existants
+        users_file = os.path.join(settings.BASE_DIR, 'home', 'users.yaml')
+        if os.path.exists(users_file):
+            with open(users_file, 'r') as file:
+                users = yaml.safe_load(file) or []
+        else:
+            users = []
+
+        # Vérification si le nom d'utilisateur ou l'email existe déjà
+        for user in users:
+            if user['username'] == username:
+                messages.error(request, \"Le nom d'utilisateur existe déjà.\")
+                return render(request, 'home/registration.html')
+            if user['email'] == email:
+                messages.error(request, \"L'adresse e-mail est déjà utilisée.\")
+                return render(request, 'home/registration.html')
+
+        # Enregistrement du nouvel utilisateur
+        user_data = {
+            'username': username,
+            'email': email,
+            'password': password  # Attention : les mots de passe devraient être hachés
+        }
+        users.append(user_data)
+
+        with open(users_file, 'w') as file:
+            yaml.dump(users, file)
+
+        messages.success(request, \"Inscription réussie. Vous pouvez maintenant vous connecter.\")
+        return redirect('index')
+
     return render(request, 'home/registration.html')
 " > home/views.py
 
@@ -69,6 +146,15 @@ cat <<'EOF' > home/templates/home/index.html
     <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
 </head>
 <body>
+    <!-- Affichage des messages -->
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
     <h1>Bienvenue, utilisateur connecté!</h1>
     <button id="loginBtn">Se connecter</button>
     <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>
@@ -122,18 +208,28 @@ cat <<'EOF' > home/templates/home/registration.html
 </head>
 <body>
     <h1>Inscription</h1>
-    <form action="/inscription/" method="post">
-        <!-- Nous n'allons pas traiter le POST pour l'instant -->
-        <label for="username">Nom d'utilisateur:</label>
+
+    <!-- Affichage des messages -->
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <form action="{% url 'registration' %}" method="post">
+        {% csrf_token %}
+        <label for="username">Nom d'utilisateur :</label>
         <input type="text" id="username" name="username" required>
 
-        <label for="email">Adresse e-mail:</label>
+        <label for="email">Adresse e-mail :</label>
         <input type="email" id="email" name="email" required>
 
-        <label for="password">Mot de passe:</label>
+        <label for="password">Mot de passe :</label>
         <input type="password" id="password" name="password" required>
 
-        <label for="confirm_password">Confirmer le mot de passe:</label>
+        <label for="confirm_password">Confirmer le mot de passe :</label>
         <input type="password" id="confirm_password" name="confirm_password" required>
 
         <button type="submit">S'inscrire</button>
@@ -175,6 +271,27 @@ input[type="password"] {
     padding: 8px;
     margin: 5px 0;
     box-sizing: border-box;
+}
+
+.messages {
+    list-style-type: none;
+    padding: 0;
+}
+
+.messages li {
+    margin: 10px auto;
+    padding: 10px;
+    width: 50%;
+    color: #fff;
+    border-radius: 5px;
+}
+
+.messages li.error {
+    background-color: #e74c3c;
+}
+
+.messages li.success {
+    background-color: #2ecc71;
 }
 
 .popup {
