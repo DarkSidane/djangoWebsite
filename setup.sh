@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# Vérifier si PyYAML est installé, sinon l'installer
-pip3 show PyYAML > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "Installation de PyYAML..."
-    pip3 install PyYAML
-fi
-
 # Créer le projet Django et l'application 'home'
 django-admin startproject mysite
 cd mysite
@@ -18,9 +11,10 @@ sed -i '' "/INSTALLED_APPS = \[/ a\\
     'home',  # Ajoutez votre application 'home' ici
 " settings.py
 
-# Ajouter 'django.contrib.messages' à INSTALLED_APPS
+# Ajouter 'django.contrib.messages' et 'django.contrib.sessions' à INSTALLED_APPS
 sed -i '' "/'django.contrib.staticfiles',/ a\\
-    'django.contrib.messages',
+    'django.contrib.messages',\\
+    'django.contrib.sessions',
 " settings.py
 
 # Ajouter STATICFILES_DIRS et configuration pour les messages à settings.py
@@ -39,9 +33,10 @@ MESSAGE_TAGS = {
 }
 " >> settings.py
 
-# Ajouter les middlewares nécessaires pour les messages
+# Ajouter les middlewares nécessaires pour les sessions et les messages
 sed -i '' "/MIDDLEWARE = \[/ a\\
     'django.contrib.sessions.middleware.SessionMiddleware',\\
+    'django.middleware.common.CommonMiddleware',\\
     'django.contrib.messages.middleware.MessageMiddleware',
 " settings.py
 
@@ -72,6 +67,8 @@ from . import views
 urlpatterns = [
     path('', views.index, name='index'),
     path('inscription/', views.registration, name='registration'),
+    path('login/', views.login, name='login'),
+    path('logout/', views.logout, name='logout'),
 ]
 " > home/urls.py
 
@@ -79,6 +76,7 @@ urlpatterns = [
 echo "
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.contrib.auth.hashers import make_password, check_password
 import yaml
 import os
 from django.conf import settings
@@ -115,11 +113,11 @@ def registration(request):
                 messages.error(request, \"L'adresse e-mail est déjà utilisée.\")
                 return render(request, 'home/registration.html')
 
-        # Enregistrement du nouvel utilisateur
+        # Enregistrement du nouvel utilisateur avec mot de passe haché
         user_data = {
             'username': username,
             'email': email,
-            'password': password  # Attention : les mots de passe devraient être hachés
+            'password': make_password(password)
         }
         users.append(user_data)
 
@@ -130,6 +128,49 @@ def registration(request):
         return redirect('index')
 
     return render(request, 'home/registration.html')
+
+def login(request):
+    if request.method == 'POST':
+        username = request.POST.get('username').strip()
+        password = request.POST.get('password')
+
+        # Charger les utilisateurs existants
+        users_file = os.path.join(settings.BASE_DIR, 'home', 'users.yaml')
+        if os.path.exists(users_file):
+            with open(users_file, 'r') as file:
+                users = yaml.safe_load(file) or []
+        else:
+            users = []
+
+        # Authentifier l'utilisateur
+        user_found = False
+        for user in users:
+            if user['username'] == username:
+                user_found = True
+                if check_password(password, user['password']):
+                    # Connexion réussie
+                    request.session['username'] = username
+                    messages.success(request, f\"Bienvenue, {username}!\")
+                    return redirect('index')
+                else:
+                    break  # Mot de passe incorrect
+
+        # Si l'authentification échoue
+        if not user_found:
+            messages.error(request, \"Nom d'utilisateur incorrect.\")
+        else:
+            messages.error(request, \"Mot de passe incorrect.\")
+        return redirect('index')
+
+    return redirect('index')
+
+def logout(request):
+    try:
+        del request.session['username']
+    except KeyError:
+        pass
+    messages.success(request, \"Vous êtes maintenant déconnecté.\")
+    return redirect('index')
 " > home/views.py
 
 # Créer le répertoire des templates
@@ -155,20 +196,28 @@ cat <<'EOF' > home/templates/home/index.html
         </ul>
     {% endif %}
 
-    <h1>Bienvenue, utilisateur connecté!</h1>
-    <button id="loginBtn">Se connecter</button>
-    <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>
+    {% if request.session.username %}
+        <h1>Bienvenue, {{ request.session.username }}!</h1>
+        <button onclick="window.location.href='{% url 'logout' %}'">Se déconnecter</button>
+    {% else %}
+        <h1>Bienvenue, invité!</h1>
+        <button id="loginBtn">Se connecter</button>
+        <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>
+    {% endif %}
 
     <!-- Popup de connexion -->
     <div id="loginPopup" class="popup">
         <div class="popup-content">
             <span class="close">&times;</span>
             <h2>Connexion</h2>
-            <label for="username">Utilisateur:</label>
-            <input type="text" id="username" name="username" required>
-            <label for="password">Mot de passe:</label>
-            <input type="password" id="password" name="password" required>
-            <button type="submit">Se connecter</button>
+            <form action="{% url 'login' %}" method="post">
+                {% csrf_token %}
+                <label for="username">Utilisateur:</label>
+                <input type="text" id="username" name="username" required>
+                <label for="password">Mot de passe:</label>
+                <input type="password" id="password" name="password" required>
+                <button type="submit">Se connecter</button>
+            </form>
         </div>
     </div>
 
@@ -178,8 +227,10 @@ cat <<'EOF' > home/templates/home/index.html
         var btn = document.getElementById('loginBtn');
         var span = document.getElementsByClassName('close')[0];
 
-        btn.onclick = function() {
-            popup.style.display = 'block';
+        if (btn) {
+            btn.onclick = function() {
+                popup.style.display = 'block';
+            }
         }
 
         span.onclick = function() {

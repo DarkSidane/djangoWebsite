@@ -16,20 +16,28 @@
         </ul>
     {% endif %}
 
-    <h1>Bienvenue, utilisateur connecté!</h1>
-    <button id="loginBtn">Se connecter</button>
-    <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>
+    {% if request.session.username %}
+        <h1>Bienvenue, {{ request.session.username }}!</h1>
+        <button onclick="window.location.href='{% url 'logout' %}'">Se déconnecter</button>
+    {% else %}
+        <h1>Bienvenue, invité!</h1>
+        <button id="loginBtn">Se connecter</button>
+        <button onclick="window.location.href='{% url 'registration' %}'">S'inscrire</button>
+    {% endif %}
 
     <!-- Popup de connexion -->
     <div id="loginPopup" class="popup">
         <div class="popup-content">
             <span class="close">&times;</span>
             <h2>Connexion</h2>
-            <label for="username">Utilisateur:</label>
-            <input type="text" id="username" name="username" required>
-            <label for="password">Mot de passe:</label>
-            <input type="password" id="password" name="password" required>
-            <button type="submit">Se connecter</button>
+            <form action="{% url 'login' %}" method="post">
+                {% csrf_token %}
+                <label for="username">Utilisateur:</label>
+                <input type="text" id="username" name="username" required>
+                <label for="password">Mot de passe:</label>
+                <input type="password" id="password" name="password" required>
+                <button type="submit">Se connecter</button>
+            </form>
         </div>
     </div>
 
@@ -39,8 +47,10 @@
         var btn = document.getElementById('loginBtn');
         var span = document.getElementsByClassName('close')[0];
 
-        btn.onclick = function() {
-            popup.style.display = 'block';
+        if (btn) {
+            btn.onclick = function() {
+                popup.style.display = 'block';
+            }
         }
 
         span.onclick = function() {
